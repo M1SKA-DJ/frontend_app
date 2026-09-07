@@ -1,5 +1,5 @@
 // ===== КОНФИГ =====
-const API_BASE = "worker-production-c7c1.up.railway.app"; // ЗАМЕНИТЕ НА ВАШУ ССЫЛКУ
+const API_BASE = "https://worker-production-c7c1.up.railway.app"; // ЗАМЕНИТЕ НА ВАШУ ССЫЛКУ
 
 // ===== TELEGRAM INIT =====
 const tg = window.Telegram.WebApp;
