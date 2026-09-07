@@ -1,44 +1,26 @@
+// ===== КОНФИГ =====
+const API_BASE = "worker-production-c7c1.up.railway.app"; // ЗАМЕНИТЕ НА ВАШУ ССЫЛКУ
+
 // ===== TELEGRAM INIT =====
 const tg = window.Telegram.WebApp;
 tg.expand();
-tg.enableClosingConfirmation();
 
 let currentGroupId = null;
 let currentWeek = 0;
 let currentDay = 0;
-let currentDate = null; // Выбранная дата
+let currentDate = null;
 let allGroups = [];
 let allTeachers = [];
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', async () => {
-    // Применяем тему Telegram
     if (tg.colorScheme === 'dark') {
         document.body.setAttribute('data-theme', 'dark');
     }
-    
-    // Устанавливаем сегодняшнюю дату в пикер
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
     document.getElementById('datePicker').value = dateStr;
     currentDate = dateStr;
-    
-    // Проверка админа
-    const userId = tg.initDataUnsafe?.user?.id;
-    if (userId) {
-        try {
-            const res = await fetch('/api/admin-check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId })
-            });
-            const data = await res.json();
-            if (data.is_admin) {
-                document.getElementById('adminBtn').style.display = 'flex';
-            }
-        } catch(e) {}
-    }
-    
     await loadGroups();
     await loadTeachers();
     await loadUserSettings();
@@ -48,32 +30,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 function switchPage(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(`page-${page}`).classList.add('active');
-    
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector(`.nav-btn[onclick*="${page}"]`).classList.add('active');
-    
-    const titles = {
-        schedule: '📚 Расписание',
-        teachers: '👨‍🏫 Преподаватели',
-        settings: '⚙️ Настройки'
-    };
+    document.querySelector(`[onclick*="${page}"]`).classList.add('active');
+    const titles = { schedule: '📚 Расписание', teachers: '👨‍🏫 Преподаватели', settings: '⚙️ Настройки' };
     document.getElementById('pageTitle').textContent = titles[page] || 'Расписание';
-    
-    if (page === 'settings') {
-        updateSettingsInfo();
-    }
+    if (page === 'settings') updateSettingsInfo();
 }
 
-// ===== ЗАГРУЗКА ГРУПП =====
+// ===== ГРУППЫ =====
 async function loadGroups() {
     try {
-        const res = await fetch('/api/groups');
-        allGroups = await res.json();
-        renderGroups(allGroups);
+        const res = await fetch(`${API_BASE}/api/groups`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        allGroups = data;
+        renderGroups(data);
     } catch (e) {
         console.error('Error loading groups:', e);
-        document.getElementById('groupsList').innerHTML = 
-            '<div class="empty-state"><span class="emoji">❌</span>Ошибка загрузки групп</div>';
+        document.getElementById('groupsList').innerHTML = `<div class="empty-state"><span class="emoji">❌</span>Ошибка загрузки групп<br><small>${e.message}</small></div>`;
     }
 }
 
@@ -85,25 +59,15 @@ function renderGroups(groups) {
     }
     container.innerHTML = groups.map(g => `
         <div class="group-card" onclick="selectGroup(${g.id})">
-            <div>
-                <div class="name">${g.name}</div>
-                <div class="sub">${g.faculty || 'Основной'}</div>
-            </div>
+            <div><div class="name">${g.name}</div><div class="sub">${g.faculty || 'Основной'}</div></div>
             <span class="arrow">→</span>
         </div>
     `).join('');
 }
 
-// ===== ПОИСК ГРУПП =====
 function searchGroups(query) {
-    if (!query.trim()) {
-        renderGroups(allGroups);
-        return;
-    }
-    const filtered = allGroups.filter(g => 
-        g.name.toLowerCase().includes(query.toLowerCase())
-    );
-    renderGroups(filtered);
+    if (!query.trim()) { renderGroups(allGroups); return; }
+    renderGroups(allGroups.filter(g => g.name.toLowerCase().includes(query.toLowerCase())));
 }
 
 // ===== ВЫБОР ГРУППЫ =====
@@ -111,16 +75,14 @@ async function selectGroup(id) {
     currentGroupId = id;
     document.getElementById('groupsList').style.display = 'none';
     document.getElementById('scheduleView').style.display = 'block';
-    
+    const userId = tg.initDataUnsafe?.user?.id || 1;
     try {
-        const userId = tg.initDataUnsafe?.user?.id || 1;
-        await fetch(`/api/user-settings/${userId}`, {
+        await fetch(`${API_BASE}/api/user-settings/${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ selected_group_id: id })
         });
     } catch(e) {}
-    
     loadSchedule(id, currentWeek);
 }
 
@@ -130,83 +92,46 @@ function backToGroups() {
     renderGroups(allGroups);
 }
 
-// ===== РАСПИСАНИЕ С УЧЁТОМ ДАТЫ =====
+// ===== РАСПИСАНИЕ =====
 function loadSchedule(groupId, weekType) {
     currentWeek = weekType;
-    
-    document.querySelectorAll('.week-tab').forEach((btn, i) => {
-        btn.classList.toggle('active', i === weekType);
-    });
-    
-    // Если дата не выбрана - используем сегодня
-    if (!currentDate) {
-        const today = new Date();
-        currentDate = today.toISOString().split('T')[0];
-        document.getElementById('datePicker').value = currentDate;
-    }
-    
-    // Определяем день недели из даты
+    document.querySelectorAll('.week-tab').forEach((btn, i) => btn.classList.toggle('active', i === weekType));
     const dateObj = new Date(currentDate);
     const dayIndex = dateObj.getDay() === 0 ? 6 : dateObj.getDay() - 1;
     currentDay = dayIndex;
-    
-    document.querySelectorAll('.day-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', i === dayIndex);
-    });
-    
+    document.querySelectorAll('.day-btn').forEach((btn, i) => btn.classList.toggle('active', i === dayIndex));
     loadDay(currentDay);
 }
 
 async function loadDay(dayIndex) {
     currentDay = dayIndex;
-    
-    document.querySelectorAll('.day-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', i === dayIndex);
-    });
-    
+    document.querySelectorAll('.day-btn').forEach((btn, i) => btn.classList.toggle('active', i === dayIndex));
     if (!currentGroupId) return;
-    
     try {
-        // Формируем URL с учётом даты
-        let url = `/api/schedule?group_id=${currentGroupId}&week_type=${currentWeek}&day_of_week=${dayIndex}`;
-        if (currentDate) {
-            url += `&specific_date=${currentDate}`;
-        }
-        
+        let url = `${API_BASE}/api/schedule?group_id=${currentGroupId}&week_type=${currentWeek}&day_of_week=${dayIndex}`;
+        if (currentDate) url += `&specific_date=${currentDate}`;
         const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const lessons = await res.json();
         renderSchedule(lessons);
-    } catch (e) {
+    } catch(e) {
         console.error('Error loading schedule:', e);
+        document.getElementById('scheduleList').innerHTML = `<div class="empty-state"><span class="emoji">❌</span>Ошибка загрузки</div>`;
     }
 }
 
 function renderSchedule(lessons) {
     const container = document.getElementById('scheduleList');
     if (!lessons || lessons.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <span class="emoji">🎉</span>
-                <span>В этот день пар нет</span>
-            </div>
-        `;
+        container.innerHTML = `<div class="empty-state"><span class="emoji">🎉</span><span>В этот день пар нет</span></div>`;
         return;
     }
-    
     container.innerHTML = lessons.map(l => {
-        let classes = 'schedule-item';
         let badges = '';
-        
-        if (l.is_cancelled) {
-            classes += ' cancelled';
-            badges += `<span class="cancelled-badge">❌ Отменена</span>`;
-        } else if (l.has_replacement) {
-            classes += ' replaced';
-            badges += `<span class="replacement-badge">🔄 Замена</span>`;
-        }
-        
+        if (l.is_cancelled) badges += `<span class="cancelled-badge">❌ Отменена</span>`;
+        else if (l.has_replacement) badges += `<span class="replacement-badge">🔄 Замена</span>`;
         return `
-            <div class="${classes}">
+            <div class="schedule-item${l.is_cancelled ? ' cancelled' : ''}">
                 <div class="top">
                     <span class="time">${l.start_time} - ${l.end_time}</span>
                     <span class="subject">${l.subject}</span>
@@ -224,41 +149,25 @@ function renderSchedule(lessons) {
     }).join('');
 }
 
-function selectWeek(weekType) {
-    if (currentGroupId) {
-        loadSchedule(currentGroupId, weekType);
-    }
-}
-
-// ===== ВЫБОР ДАТЫ =====
-function onDateChange(dateStr) {
-    if (!dateStr) return;
-    currentDate = dateStr;
-    if (currentGroupId) {
-        loadSchedule(currentGroupId, currentWeek);
-    }
-}
-
+function selectWeek(weekType) { if (currentGroupId) loadSchedule(currentGroupId, weekType); }
+function onDateChange(dateStr) { currentDate = dateStr; if (currentGroupId) loadSchedule(currentGroupId, currentWeek); }
 function resetToToday() {
     const today = new Date();
     const dateStr = today.toISOString().split('T')[0];
     document.getElementById('datePicker').value = dateStr;
     currentDate = dateStr;
-    if (currentGroupId) {
-        loadSchedule(currentGroupId, currentWeek);
-    }
+    if (currentGroupId) loadSchedule(currentGroupId, currentWeek);
 }
 
 // ===== ПРЕПОДАВАТЕЛИ =====
 async function loadTeachers() {
     try {
-        const res = await fetch('/api/teachers');
+        const res = await fetch(`${API_BASE}/api/teachers`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allTeachers = await res.json();
         renderTeachers(allTeachers);
-    } catch (e) {
+    } catch(e) {
         console.error('Error loading teachers:', e);
-        document.getElementById('teachersList').innerHTML = 
-            '<div class="empty-state"><span class="emoji">❌</span>Ошибка загрузки</div>';
     }
 }
 
@@ -270,80 +179,51 @@ function renderTeachers(teachers) {
     }
     container.innerHTML = teachers.map(t => `
         <div class="teacher-card" onclick="showTeacherSchedule(${t.id}, '${t.name}')">
-            <div>
-                <div class="name">${t.name}</div>
-                <div class="sub">${t.department || 'Кафедра'}</div>
-            </div>
+            <div><div class="name">${t.name}</div><div class="sub">${t.department || 'Кафедра'}</div></div>
             <span class="arrow">→</span>
         </div>
     `).join('');
 }
 
 function searchTeachers(query) {
-    if (!query.trim()) {
-        renderTeachers(allTeachers);
-        return;
-    }
-    const filtered = allTeachers.filter(t => 
-        t.name.toLowerCase().includes(query.toLowerCase())
-    );
-    renderTeachers(filtered);
+    if (!query.trim()) { renderTeachers(allTeachers); return; }
+    renderTeachers(allTeachers.filter(t => t.name.toLowerCase().includes(query.toLowerCase())));
 }
 
 async function showTeacherSchedule(id, name) {
     document.getElementById('teachersList').style.display = 'none';
     document.getElementById('teacherScheduleView').style.display = 'block';
-    
     try {
-        let url = `/api/teacher-schedule?teacher_id=${id}`;
-        if (currentDate) {
-            url += `&specific_date=${currentDate}`;
-        }
-        
+        let url = `${API_BASE}/api/teacher-schedule?teacher_id=${id}`;
+        if (currentDate) url += `&specific_date=${currentDate}`;
         const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const schedule = await res.json();
-        
         const container = document.getElementById('teacherScheduleContent');
         if (!schedule || schedule.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <span class="emoji">📭</span>
-                    <span>У ${name} нет пар на эту дату</span>
-                </div>
-            `;
+            container.innerHTML = `<div class="empty-state"><span class="emoji">📭</span><span>У ${name} нет пар</span></div>`;
             return;
         }
-        
         const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         const grouped = {};
         schedule.forEach(l => {
-            const week = l.week_type === 0 ? 'Чётная' : 'Нечётная';
-            const key = `${week} ${days[l.day_of_week]}`;
+            const key = `${l.week_type === 0 ? 'Четная' : 'Нечетная'} ${days[l.day_of_week]}`;
             if (!grouped[key]) grouped[key] = [];
             grouped[key].push(l);
         });
-        
         container.innerHTML = Object.entries(grouped).map(([day, lessons]) => `
             <div style="margin-bottom:12px;">
-                <div style="font-weight:700;margin-bottom:8px;color:var(--primary);">📅 ${day}</div>
+                <div style="font-weight:700;color:var(--primary);">📅 ${day}</div>
                 ${lessons.map(l => `
-                    <div class="teacher-schedule-item" style="${l.is_cancelled ? 'opacity:0.6;' : ''}">
-                        <div class="info">
-                            <span><strong>${l.start_time}</strong> ${l.subject}</span>
-                            <span>${l.group}</span>
-                        </div>
-                        <div class="group">
-                            🏫 ${l.classroom}
-                            ${l.is_cancelled ? ' ❌ Отменена' : ''}
-                            ${l.note ? ` 📌 ${l.note}` : ''}
-                        </div>
+                    <div class="teacher-schedule-item">
+                        <div class="info"><span><strong>${l.start_time}</strong> ${l.subject}</span><span>${l.group}</span></div>
+                        <div class="group">🏫 ${l.classroom} ${l.is_cancelled ? ' ❌ Отменена' : ''}</div>
                     </div>
                 `).join('')}
             </div>
         `).join('');
-        
-    } catch (e) {
-        console.error('Error:', e);
+    } catch(e) {
+        console.error('Error loading teacher schedule:', e);
     }
 }
 
@@ -356,30 +236,21 @@ function backToTeachers() {
 async function loadUserSettings() {
     try {
         const userId = tg.initDataUnsafe?.user?.id || 1;
-        const res = await fetch(`/api/user-settings/${userId}`);
+        const res = await fetch(`${API_BASE}/api/user-settings/${userId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const settings = await res.json();
-        
-        if (settings.theme === 'dark') {
-            document.body.setAttribute('data-theme', 'dark');
-        }
-        
-        if (settings.font_size === 'small') {
-            document.body.style.fontSize = '14px';
-        } else if (settings.font_size === 'large') {
-            document.body.style.fontSize = '18px';
-        }
-        
+        if (settings.theme === 'dark') document.body.setAttribute('data-theme', 'dark');
+        if (settings.font_size === 'small') document.body.style.fontSize = '14px';
+        else if (settings.font_size === 'large') document.body.style.fontSize = '18px';
         if (settings.selected_group_id) {
             currentGroupId = settings.selected_group_id;
-            showScheduleView();
+            document.getElementById('groupsList').style.display = 'none';
+            document.getElementById('scheduleView').style.display = 'block';
             loadSchedule(currentGroupId, currentWeek);
         }
-    } catch(e) {}
-}
-
-function showScheduleView() {
-    document.getElementById('groupsList').style.display = 'none';
-    document.getElementById('scheduleView').style.display = 'block';
+    } catch(e) {
+        console.log('Settings not loaded, using defaults');
+    }
 }
 
 function updateSettingsInfo() {
@@ -393,19 +264,12 @@ function updateSettingsInfo() {
 }
 
 function setTheme(theme) {
-    if (theme === 'dark') {
-        document.body.setAttribute('data-theme', 'dark');
-    } else {
-        document.body.removeAttribute('data-theme');
-    }
-    
-    document.querySelectorAll('.option-btn').forEach(b => {
-        b.classList.remove('active');
-    });
+    if (theme === 'dark') document.body.setAttribute('data-theme', 'dark');
+    else document.body.removeAttribute('data-theme');
+    document.querySelectorAll('.option-btn[data-setting="theme"]').forEach(b => b.classList.remove('active'));
     event.target.classList.add('active');
-    
     const userId = tg.initDataUnsafe?.user?.id || 1;
-    fetch(`/api/user-settings/${userId}`, {
+    fetch(`${API_BASE}/api/user-settings/${userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ theme })
@@ -415,16 +279,28 @@ function setTheme(theme) {
 function setFont(size) {
     const sizes = { small: '14px', medium: '16px', large: '18px' };
     document.body.style.fontSize = sizes[size] || '16px';
-    
-    document.querySelectorAll('.option-btn').forEach(b => {
-        b.classList.remove('active');
-    });
+    document.querySelectorAll('.option-btn[data-setting="font"]').forEach(b => b.classList.remove('active'));
     event.target.classList.add('active');
-    
     const userId = tg.initDataUnsafe?.user?.id || 1;
-    fetch(`/api/user-settings/${userId}`, {
+    fetch(`${API_BASE}/api/user-settings/${userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ font_size: size })
     });
+}
+
+// ===== АДМИН-ПРОВЕРКА =====
+async function checkAdmin() {
+    try {
+        const userId = tg.initDataUnsafe?.user?.id || 1;
+        const res = await fetch(`${API_BASE}/api/admin-check`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId })
+        });
+        const data = await res.json();
+        if (data.is_admin) {
+            document.getElementById('adminBtn').style.display = 'flex';
+        }
+    } catch(e) {}
 }
