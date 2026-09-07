@@ -528,7 +528,7 @@
         // ============ GROUPS ============
         async function loadGroups() {
             try {
-                const res = await fetch('/api/groups');
+                const res = await fetch(API_BASE + '/api/groups');
                 const data = await res.json();
                 const container = document.getElementById('groupsList');
                 if (!data || data.length === 0) {
@@ -549,7 +549,7 @@
             const name = document.getElementById('groupName').value.trim();
             const faculty = document.getElementById('groupFaculty').value.trim();
             if (!name) { showToast('Введите название группы', 'error'); return; }
-            await fetch('/admin/api/groups', {
+            await fetch(API_BASE + '/admin/api/groups', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, faculty })
@@ -562,7 +562,7 @@
 
         async function deleteGroup(id) {
             if (!confirm('Удалить группу?')) return;
-            await fetch(`/admin/api/groups/${id}`, { method: 'DELETE' });
+            await fetch(API_BASE + `/admin/api/groups/${id}`, { method: 'DELETE' });
             showToast('Группа удалена');
             loadGroups();
         }
@@ -570,7 +570,7 @@
         // ============ TEACHERS ============
         async function loadTeachers() {
             try {
-                const res = await fetch('/api/teachers');
+                const res = await fetch(API_BASE + '/api/teachers');
                 const data = await res.json();
                 const container = document.getElementById('teachersList');
                 if (!data || data.length === 0) {
@@ -591,7 +591,7 @@
             const name = document.getElementById('teacherName').value.trim();
             const dept = document.getElementById('teacherDepartment').value.trim();
             if (!name) { showToast('Введите ФИО преподавателя', 'error'); return; }
-            await fetch('/admin/api/teachers', {
+            await fetch(API_BASE + '/admin/api/teachers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, department: dept })
@@ -604,7 +604,7 @@
 
         async function deleteTeacher(id) {
             if (!confirm('Удалить преподавателя?')) return;
-            await fetch(`/admin/api/teachers/${id}`, { method: 'DELETE' });
+            await fetch(API_BASE + `/admin/api/teachers/${id}`, { method: 'DELETE' });
             showToast('Преподаватель удален');
             loadTeachers();
         }
@@ -612,7 +612,7 @@
         // ============ CLASSROOMS ============
         async function loadClassrooms() {
             try {
-                const res = await fetch('/api/classrooms');
+                const res = await fetch(API_BASE + '/api/classrooms');
                 const data = await res.json();
                 const container = document.getElementById('classroomsList');
                 if (!data || data.length === 0) {
@@ -633,7 +633,7 @@
             const number = document.getElementById('classroomNumber').value.trim();
             const building = document.getElementById('classroomBuilding').value.trim();
             if (!number) { showToast('Введите номер аудитории', 'error'); return; }
-            await fetch('/admin/api/classrooms', {
+            await fetch(API_BASE + '/admin/api/classrooms', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ number, building })
@@ -646,7 +646,7 @@
 
         async function deleteClassroom(id) {
             if (!confirm('Удалить аудиторию?')) return;
-            await fetch(`/admin/api/classrooms/${id}`, { method: 'DELETE' });
+            await fetch(API_BASE + `/admin/api/classrooms/${id}`, { method: 'DELETE' });
             showToast('Аудитория удалена');
             loadClassrooms();
         }
@@ -659,7 +659,7 @@
                 return;
             }
             try {
-                const res = await fetch(`/api/lessons?group_id=${groupId}`);
+                const res = await fetch(API_BASE + `/api/lessons?group_id=${groupId}`);
                 const data = await res.json();
                 const container = document.getElementById('lessonsList');
                 if (!data || data.length === 0) {
@@ -712,7 +712,7 @@
                 showToast('Дата начала не может быть позже окончания', 'error');
                 return;
             }
-            await fetch('/admin/api/lessons', {
+            await fetch(API_BASE + '/admin/api/lessons', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -727,7 +727,7 @@
 
         async function deleteLesson(id) {
             if (!confirm('Удалить пару?')) return;
-            await fetch(`/admin/api/lessons/${id}`, { method: 'DELETE' });
+            await fetch(API_BASE + `/admin/api/lessons/${id}`, { method: 'DELETE' });
             showToast('Пара удалена');
             loadLessons();
         }
@@ -736,21 +736,21 @@
         let currentReplacementId = null;
 
         async function loadGroupsForReplacement() {
-            const res = await fetch('/api/groups');
+            const res = await fetch(API_BASE + '/api/groups');
             const groups = await res.json();
             const select = document.getElementById('repGroup');
             select.innerHTML = '<option value="">Выберите группу</option>' + groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
         }
 
         async function loadTeachersForReplacement() {
-            const res = await fetch('/api/teachers');
+            const res = await fetch(API_BASE + '/api/teachers');
             const teachers = await res.json();
             const select = document.getElementById('repNewTeacher');
             select.innerHTML = '<option value="">Новый преподаватель</option>' + teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
         }
 
         async function loadClassroomsForReplacement() {
-            const res = await fetch('/api/classrooms');
+            const res = await fetch(API_BASE + '/api/classrooms');
             const classrooms = await res.json();
             const select = document.getElementById('repNewClassroom');
             select.innerHTML = '<option value="">Новая аудитория</option>' + classrooms.map(c => `<option value="${c.id}">${c.number}</option>`).join('');
@@ -760,7 +760,7 @@
             const groupId = document.getElementById('repGroup').value;
             const select = document.getElementById('repLesson');
             if (!groupId) { select.innerHTML = '<option value="">Выберите пару</option>'; return; }
-            const res = await fetch(`/api/lessons?group_id=${groupId}`);
+            const res = await fetch(API_BASE + `/api/lessons?group_id=${groupId}`);
             const lessons = await res.json();
             select.innerHTML = '<option value="">Выберите пару</option>' + lessons.map(l => `<option value="${l.id}">${l.start_time} - ${l.subject}</option>`).join('');
         }
@@ -774,7 +774,7 @@
                 return;
             }
             try {
-                const res = await fetch(`/api/replacements/${lessonId}/${dateStr}`);
+                const res = await fetch(API_BASE + `/api/replacements/${lessonId}/${dateStr}`);
                 const data = await res.json();
                 if (data && data.id) {
                     currentReplacementId = data.id;
@@ -809,7 +809,7 @@
                 note: document.getElementById('repNote').value.trim() || null,
                 is_cancelled: document.getElementById('repIsCancelled').checked
             };
-            await fetch('/admin/api/replacements', {
+            await fetch(API_BASE + '/admin/api/replacements', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -822,7 +822,7 @@
         async function deleteReplacement() {
             if (!currentReplacementId) { showToast('Нет замены', 'error'); return; }
             if (!confirm('Удалить замену?')) return;
-            await fetch(`/admin/api/replacements/${currentReplacementId}`, { method: 'DELETE' });
+            await fetch(API_BASE + `/admin/api/replacements/${currentReplacementId}`, { method: 'DELETE' });
             showToast('Замена удалена');
             document.getElementById('deleteRepBtn').style.display = 'none';
             currentReplacementId = null;
@@ -831,7 +831,7 @@
 
         async function loadReplacementsList() {
             try {
-                const res = await fetch('/api/replacements/all');
+                const res = await fetch(API_BASE + '/api/replacements/all');
                 const data = await res.json();
                 const container = document.getElementById('replacementsList');
                 if (!data || data.length === 0) {
@@ -852,7 +852,7 @@
 
         async function deleteReplacementById(id) {
             if (!confirm('Удалить замену?')) return;
-            await fetch(`/admin/api/replacements/${id}`, { method: 'DELETE' });
+            await fetch(API_BASE + `/admin/api/replacements/${id}`, { method: 'DELETE' });
             showToast('Замена удалена');
             loadReplacementsList();
         }
@@ -860,9 +860,9 @@
         // ============ UPDATE SELECTS ============
         async function updateSelects() {
             try {
-                const groups = await (await fetch('/api/groups')).json();
-                const teachers = await (await fetch('/api/teachers')).json();
-                const classrooms = await (await fetch('/api/classrooms')).json();
+                const groups = await (await fetch(API_BASE + '/api/groups')).json();
+                const teachers = await (await fetch(API_BASE + '/api/teachers')).json();
+                const classrooms = await (await fetch(API_BASE +  '/api/classrooms')).json();
                 document.getElementById('lessonGroup').innerHTML = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
                 document.getElementById('lessonTeacher').innerHTML = teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
                 document.getElementById('lessonClassroom').innerHTML = classrooms.map(c => `<option value="${c.id}">${c.number}</option>`).join('');
